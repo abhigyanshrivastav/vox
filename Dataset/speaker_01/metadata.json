@@ -1,0 +1,21 @@
+{
+    "speaker_id": "01",
+    "num_real_samples_required": 10,
+    "num_fake_samples": 10,
+    "voices_used": [
+        "en-US-GuyNeural",
+        "en-US-JennyNeural",
+        "en-GB-RyanNeural",
+        "en-GB-SoniaNeural"
+    ],
+    "sentences": [
+        "Secure channels must remain uncompromised at all times.",
+        "Authentication codes will rotate every five minutes.",
+        "Drone surveillance detected movement near the perimeter.",
+        "The quick brown fox jumps over the lazy dog.",
+        "Mission authorization requires biometric verification.",
+        "Radio silence must be maintained during infiltration.",
+        "Encryption keys must never be transmitted verbally.",
+        "All personnel must verify identity using voice prints."
+    ]
+}

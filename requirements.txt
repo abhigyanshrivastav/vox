@@ -1,0 +1,10 @@
+numpy
+scipy
+librosa
+soundfile
+scikit-learn
+joblib
+matplotlib
+streamlit
+pydub
+pyttsx3

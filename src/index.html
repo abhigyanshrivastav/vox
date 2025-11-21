@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AI Voice Authentication Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #020617;
+      --bg-alt: #020817;
+      --panel: #020617;
+      --border: #1f2937;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.15);
+      --warn: #eab308;
+      --warn-soft: rgba(234, 179, 8, 0.18);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #000 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 16px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1200px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: linear-gradient(135deg, #020617 0%, #030712 50%, #020617 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      padding: 18px 20px 22px;
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.7),
+        0 28px 80px rgba(0, 0, 0, 0.7);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.1), transparent 55%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .title-block h1 {
+      font-size: 20px;
+      margin: 0 0 4px;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.85);
+      color: #93c5fd;
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 420px;
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 4px #22c55e;
+    }
+
+    .chip-dot-warn {
+      background: #f97316;
+      box-shadow: 0 0 4px #f97316;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #6b7280;
+      margin: 8px 0 10px;
+    }
+
+    .input-block {
+      border-radius: 14px;
+      border: 1px dashed rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.8);
+      padding: 12px 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .input-block:hover {
+      border-color: rgba(96, 165, 250, 0.9);
+      box-shadow: 0 0 0 1px rgba(30, 64, 175, 0.6);
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .file-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    input[type="file"] {
+      font-size: 12px;
+      color: var(--text);
+      max-width: 240px;
+    }
+
+    .button {
+      border-radius: 999px;
+      border: none;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #022c22;
+      box-shadow: 0 0 16px rgba(34, 197, 94, 0.4);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.07);
+      box-shadow: 0 0 22px rgba(34, 197, 94, 0.6);
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .button-secondary {
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--muted);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: none;
+    }
+
+    .button-secondary:hover {
+      filter: none;
+      box-shadow: 0 0 18px rgba(59, 130, 246, 0.4);
+      border-color: rgba(96, 165, 250, 0.9);
+      color: #bfdbfe;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .challenge-block {
+      margin-top: 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 55%);
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    .challenge-label {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #9ca3af;
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+
+    .challenge-phrase {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      padding: 6px 8px;
+      font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      color: #e5e7eb;
+      margin-top: 4px;
+      word-break: break-word;
+    }
+
+    .challenge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .toggle-row input {
+      margin-right: 4px;
+    }
+
+    .verdict-card {
+      margin-top: 2px;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: radial-gradient(circle at top, rgba(34, 197, 94, 0.07), rgba(15, 23, 42, 0.9));
+      padding: 12px 14px 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .verdict-card.fake {
+      background: radial-gradient(circle at top, rgba(248, 113, 113, 0.12), rgba(15, 23, 42, 0.95));
+      border-color: rgba(248, 113, 113, 0.7);
+    }
+
+    .verdict-card.suspicious {
+      background: radial-gradient(circle at top, rgba(250, 204, 21, 0.13), rgba(15, 23, 42, 0.95));
+      border-color: rgba(250, 204, 21, 0.7);
+    }
+
+    .verdict-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 4px;
+    }
+
+    .pill-real {
+      background: var(--accent-soft);
+      color: #bbf7d0;
+      border: 1px solid rgba(34, 197, 94, 0.6);
+    }
+
+    .pill-fake {
+      background: var(--danger-soft);
+      color: #fecaca;
+      border: 1px solid rgba(239, 68, 68, 0.7);
+    }
+
+    .pill-susp {
+      background: var(--warn-soft);
+      color: #fef3c7;
+      border: 1px solid rgba(234, 179, 8, 0.8);
+    }
+
+    .verdict-title {
+      font-size: 16px;
+      margin: 0 0 4px;
+    }
+
+    .verdict-sub {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .metrics-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    .metric {
+      min-width: 90px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .metric-value {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .metric-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .json-block {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.3);
+      font-size: 11px;
+      color: #6b7280;
+      max-height: 140px;
+      overflow: auto;
+    }
+
+    .json-block code {
+      white-space: pre;
+      font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .history-card {
+      margin-top: 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(75, 85, 99, 0.7);
+      background: radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.1), rgba(15, 23, 42, 0.95));
+      padding: 10px 12px;
+      font-size: 12px;
+      max-height: 230px;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    th, td {
+      padding: 4px 6px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.8);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.98);
+      z-index: 1;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .tag-real { background: rgba(34, 197, 94, 0.2); color: #bbf7d0; }
+    .tag-fake { background: rgba(239, 68, 68, 0.2); color: #fecaca; }
+    .tag-susp { background: rgba(234, 179, 8, 0.2); color: #fef3c7; }
+
+    .audio-preview {
+      margin-top: 8px;
+    }
+
+    .badge-small {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .legend {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .legend span {
+      margin-right: 10px;
+    }
+
+    .legend-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- LEFT: Input + Challenge -->
+    <div class="card">
+      <div class="card-header">
+        <div class="title-block">
+          <h1>
+            🎤 AI Voice Authentication
+            <span class="title-badge">
+              <span class="chip-dot"></span>
+              Prototype console
+            </span>
+          </h1>
+          <p class="subtitle">
+            Upload an audio clip and the backend model will estimate whether it is
+            a <b>genuine human voice</b> or a <b>spoofed / deepfake sample</b>.
+          </p>
+        </div>
+        <div class="chip-row">
+          <span class="chip">
+            <span class="chip-dot"></span>
+            Spoof detector online
+          </span>
+          <span class="chip">
+            <span class="chip-dot-warn"></span>
+            Prototype – not field graded
+          </span>
+        </div>
+      </div>
+
+      <div class="section-title">Input &amp; Capture</div>
+      <div class="input-block">
+        <label for="fileInput">Audio file (WAV / MP3 / FLAC / OGG / M4A)</label>
+        <div class="file-row">
+          <input type="file" id="fileInput" accept="audio/*" />
+          <button class="button" id="btnAnalyze">
+            ▶ Analyze sample
+          </button>
+        </div>
+        <div class="hint">
+          Use your own recording or a synthetic/TTS clip. The audio is sent to the local FastAPI backend at <code>/analyze</code>.
+        </div>
+        <div class="audio-preview">
+          <audio id="audioPlayer" controls style="width:100%; display:none;"></audio>
+        </div>
+      </div>
+
+      <div class="challenge-block">
+        <div class="challenge-row">
+          <div>
+            <div class="challenge-label">Challenge–response concept</div>
+            <div class="hint">
+              In secure ops, callers repeat a random phrase to bind the command to a live human.
+            </div>
+          </div>
+          <button class="button-secondary" id="btnPhrase">Generate phrase</button>
+        </div>
+        <div id="phraseBox" class="challenge-phrase" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Verdict + History -->
+    <div class="card">
+      <div class="card-header" style="margin-bottom: 4px;">
+        <div class="title-block">
+          <h1 style="font-size:18px;margin-bottom:2px;">Decision &amp; Telemetry</h1>
+          <p class="subtitle">
+            Combined view of model verdict, risk level, and session history for this browser.
+          </p>
+        </div>
+        <div class="chip-row">
+          <label class="badge-small">
+            <input type="checkbox" id="expertToggle" style="margin:0;" />
+            Expert view
+          </label>
+        </div>
+      </div>
+
+      <div id="verdictCard" class="verdict-card" style="display:none;">
+        <div id="verdictPill" class="verdict-pill pill-real">
+          ✅ AUTHENTIC
+        </div>
+        <h3 class="verdict-title" id="verdictTitle"></h3>
+        <p class="verdict-sub" id="verdictSub"></p>
+
+        <div class="metrics-row">
+          <div class="metric">
+            <div class="metric-label">Prob. REAL</div>
+            <div class="metric-value" id="metricReal">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Prob. FAKE</div>
+            <div class="metric-value" id="metricFake">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Risk level</div>
+            <div class="metric-value" id="metricRisk">–</div>
+            <div class="metric-badge">
+              Risk computed from spoof probability; more signals can be added.
+            </div>
+          </div>
+        </div>
+
+        <div class="json-block" id="jsonBlock" style="display:none;">
+          Raw backend response:
+          <br />
+          <code id="rawJson"></code>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <div class="section-title" style="margin-top:0;">Session history</div>
+        <div class="legend">
+          <span><span class="legend-dot" style="background:#22c55e;"></span>Real / accepted</span>
+          <span><span class="legend-dot" style="background:#ef4444;"></span>Fake / rejected</span>
+          <span><span class="legend-dot" style="background:#eab308;"></span>Suspicious</span>
+        </div>
+        <div style="margin-top:6px;">
+          <table id="historyTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>File</th>
+                <th>Verdict</th>
+                <th>Prob R</th>
+                <th>Prob F</th>
+                <th>Risk</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <!-- filled by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // === CONFIG ===
+    const API_URL = "http://127.0.0.1:8000/analyze";  // adjust if hosting elsewhere
+
+    const btnAnalyze = document.getElementById("btnAnalyze");
+    const fileInput = document.getElementById("fileInput");
+    const audioPlayer = document.getElementById("audioPlayer");
+
+    const btnPhrase = document.getElementById("btnPhrase");
+    const phraseBox = document.getElementById("phraseBox");
+
+    const verdictCard = document.getElementById("verdictCard");
+    const verdictPill = document.getElementById("verdictPill");
+    const verdictTitle = document.getElementById("verdictTitle");
+    const verdictSub = document.getElementById("verdictSub");
+    const metricReal = document.getElementById("metricReal");
+    const metricFake = document.getElementById("metricFake");
+    const metricRisk = document.getElementById("metricRisk");
+    const rawJsonEl = document.getElementById("rawJson");
+    const jsonBlock = document.getElementById("jsonBlock");
+    const expertToggle = document.getElementById("expertToggle");
+
+    const historyBody = document.getElementById("historyBody");
+
+    let history = [];
+
+    // --- Challenge phrases ---
+    const phrases = [
+      "Hold position at checkpoint",
+      "Authentication required for override",
+      "Alpha team proceed to sector three",
+      "Secure channel only, confirm identity",
+      "Abort mission on my signal",
+      "Confirm identity and continue",
+      "Standby for encrypted transmission",
+      "Command authority verification required",
+      "Do not execute until code is verified",
+      "Report status from sector seven immediately"
+    ];
+
+    btnPhrase.onclick = () => {
+      const text = phrases[Math.floor(Math.random() * phrases.length)];
+      phraseBox.style.display = "block";
+      phraseBox.textContent = text;
+    };
+
+    // --- Expert mode toggle ---
+    expertToggle.addEventListener("change", () => {
+      jsonBlock.style.display = expertToggle.checked ? "block" : "none";
+    });
+
+    // --- Analyze button logic ---
+    btnAnalyze.onclick = async () => {
+      if (!fileInput.files.length) {
+        alert("Select an audio file first.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      btnAnalyze.disabled = true;
+      btnAnalyze.textContent = "Analyzing…";
+
+      // Load audio into player
+      const url = URL.createObjectURL(file);
+      audioPlayer.src = url;
+      audioPlayer.style.display = "block";
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: formData
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+
+        // Normalize keys
+        const probReal = Number(data.prob_real ?? data.probReal ?? 0);
+        const probFake = Number(data.prob_fake ?? data.probFake ?? 0);
+        const verdictRaw = (data.verdict || "").toLowerCase();
+
+        // --- Decision policy (frontend) ---
+        let verdict = verdictRaw;
+        if (verdict !== "real" && verdict !== "fake") {
+          verdict = probFake >= 0.6 ? "fake" : "real";
+        }
+
+        let risk = "Low";
+        if (probFake >= 0.8) {
+          risk = "High";
+        } else if (probFake >= 0.5) {
+          risk = "Medium";
+        }
+
+        // --- Update verdict card ---
+        verdictCard.style.display = "block";
+        verdictCard.classList.remove("fake", "suspicious");
+
+        let pillClass = "pill-real";
+        let pillText = "✅ AUTHENTIC";
+        let titleText = "Access granted – voice accepted";
+        let subText = "Model believes this is a genuine human voice sample.";
+
+        if (verdict === "fake") {
+          verdictCard.classList.add("fake");
+          pillClass = "pill-fake";
+          pillText = "❌ SPOOF / FAKE";
+          titleText = "Access denied – spoof suspected";
+          subText = "The model assigns higher probability to synthetic or spoofed speech.";
+        } else if (risk === "Medium") {
+          verdictCard.classList.add("suspicious");
+          pillClass = "pill-susp";
+          pillText = "⚠️ REAL BUT SUSPICIOUS";
+          titleText = "Proceed with caution";
+          subText = "The model leans real, but spoof probability is moderate.";
+        }
+
+        verdictPill.className = "verdict-pill " + pillClass;
+        verdictPill.textContent = pillText;
+        verdictTitle.textContent = titleText;
+        verdictSub.textContent = subText;
+
+        metricReal.textContent = probReal.toFixed(2);
+        metricFake.textContent = probFake.toFixed(2);
+        metricRisk.textContent = risk;
+
+        rawJsonEl.textContent = JSON.stringify(data, null, 2);
+        jsonBlock.style.display = expertToggle.checked ? "block" : "none";
+
+        // --- Update history ---
+        const entry = {
+          file: file.name,
+          verdict,
+          probReal,
+          probFake,
+          risk
+        };
+        history.unshift(entry); // latest on top
+        renderHistory();
+      } catch (err) {
+        alert("Error calling backend: " + err.message);
+      } finally {
+        btnAnalyze.disabled = false;
+        btnAnalyze.textContent = "▶ Analyze sample";
+      }
+    };
+
+    function renderHistory() {
+      historyBody.innerHTML = "";
+      history.forEach((row, idx) => {
+        const tr = document.createElement("tr");
+
+        const tdIdx = document.createElement("td");
+        tdIdx.textContent = idx + 1;
+
+        const tdFile = document.createElement("td");
+        tdFile.textContent = row.file || "–";
+
+        const tdVerdict = document.createElement("td");
+        const span = document.createElement("span");
+        span.classList.add("tag");
+        if (row.verdict === "real") {
+          span.classList.add("tag-real");
+          span.textContent = "REAL";
+        } else if (row.verdict === "fake") {
+          span.classList.add("tag-fake");
+          span.textContent = "FAKE";
+        } else {
+          span.classList.add("tag-susp");
+          span.textContent = "SUSPICIOUS";
+        }
+        tdVerdict.appendChild(span);
+
+        const tdPR = document.createElement("td");
+        tdPR.textContent = row.probReal.toFixed(2);
+
+        const tdPF = document.createElement("td");
+        tdPF.textContent = row.probFake.toFixed(2);
+
+        const tdRisk = document.createElement("td");
+        tdRisk.textContent = row.risk;
+
+        tr.appendChild(tdIdx);
+        tr.appendChild(tdFile);
+        tr.appendChild(tdVerdict);
+        tr.appendChild(tdPR);
+        tr.appendChild(tdPF);
+        tr.appendChild(tdRisk);
+
+        historyBody.appendChild(tr);
+      });
+
+      if (history.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 6;
+        td.textContent = "No samples analyzed yet.";
+        td.style.color = "#6b7280";
+        tr.appendChild(td);
+        historyBody.appendChild(tr);
+      }
+    }
+
+    // Initialize empty history
+    renderHistory();
+  </script>
+</body>
+</html>
