@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./index.css";
 
-const API_URL = "http://127.0.0.1:8000/analyze";
+const API_URL = "https://vox-dz3z.onrender.com/analyze";
 
 const CHALLENGE_PHRASES = [
   "Hold position at checkpoint",
