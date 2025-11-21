@@ -8,3 +8,7 @@ matplotlib
 streamlit
 pydub
 pyttsx3
+fastapi
+uvicorn
+python-multipart
+starlette
