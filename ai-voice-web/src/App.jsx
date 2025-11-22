@@ -50,6 +50,9 @@ function App() {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
 
+  // zoom for spectrogram
+  const [zoom, setZoom] = useState(1.0); // 1.0 = 100%
+
   // --- file handling ---
   const onFileChange = (e) => {
     const f = e.target.files[0];
@@ -73,7 +76,9 @@ function App() {
       const res = await fetch(ex.path);
       if (!res.ok) throw new Error("Example not found");
       const blob = await res.blob();
-      const exampleFile = new File([blob], ex.path.split("/").pop(), { type: blob.type });
+      const exampleFile = new File([blob], ex.path.split("/").pop(), {
+        type: blob.type,
+      });
       setFile(exampleFile);
       setAudioUrl(URL.createObjectURL(blob));
     } catch (err) {
@@ -110,29 +115,68 @@ function App() {
       const isoScore = data.iso_score;
       const similarity = data.similarity;
 
-      // decision stack (same logic as earlier)
+      // decision stack
       let reasons = [];
-      if (probReal < 0.6) reasons.push("Spoof model: low real probability");
+      if (probReal < 0.6)
+        reasons.push("Spoof model: low real probability");
       if (isoScore !== null && isoScore < anomalyThr)
         reasons.push("Anomaly detector: unusual embedding");
-      if (data.has_enrollment && similarity !== null && similarity < similarityThr)
+      if (
+        data.has_enrollment &&
+        similarity !== null &&
+        similarity < similarityThr
+      )
         reasons.push("Speaker mismatch: low similarity");
 
       let baseVerdict = "ACCEPT";
       if (backendVerdict === "fake" && probFake > 0.6) baseVerdict = "REJECT";
 
       let finalVerdict;
-      if (baseVerdict === "ACCEPT" && reasons.length === 0) finalVerdict = "ACCEPT";
+      if (baseVerdict === "ACCEPT" && reasons.length === 0)
+        finalVerdict = "ACCEPT";
       else if (baseVerdict === "REJECT") finalVerdict = "REJECT";
       else finalVerdict = "SUSPICIOUS";
 
-      let riskLevel = 0;
-      if (probReal < 0.6) riskLevel += 1;
-      if (isoScore !== null && isoScore < anomalyThr) riskLevel += 1;
-      if (data.has_enrollment && similarity !== null && similarity < similarityThr)
-        riskLevel += 1;
+      // --- risk scoring ---
+      // --- risk scoring ---
 
-      const riskString = riskLevel === 0 ? "Low" : riskLevel === 1 ? "Medium" : "High";
+      // Base risk from prob_real
+      let riskScore = 0;
+      if (probReal >= 0.75) {
+        riskScore += 0; // clearly human-ish
+      } else if (probReal >= 0.5) {
+        riskScore += 1; // borderline zone
+      } else {
+        riskScore += 2; // likely fake / untrustworthy
+      }
+
+      // Anomaly penalty
+      if (isoScore !== null && isoScore < anomalyThr) {
+        riskScore += 1;
+      }
+
+      // Speaker mismatch penalty
+      if (data.has_enrollment && similarity !== null && similarity < similarityThr) {
+        riskScore += 1;
+      }
+
+      let riskString;
+
+      // HARD RULE: if prob_real < 0.5 → always HIGH
+      if (probReal < 0.5) {
+        riskString = "High";
+      } else {
+        // normal mapping for human-ish / borderline
+        if (riskScore <= 1) {
+          riskString = "Low";
+        } else if (riskScore === 2) {
+          riskString = "Medium";
+        } else {
+          riskString = "High";
+        }
+      }
+
+
 
       const merged = {
         ...data,
@@ -205,13 +249,41 @@ function App() {
     <div className="site-root">
       {/* Global header */}
       <header className="topbar">
-        <div className="brand">
-          <div className="brand-icon">🛡️</div>
-          <div>
-            <div className="brand-title">Aegis Voice Shield</div>
-            <div className="brand-sub">AI anti-deepfake voice gate</div>
-          </div>
+      <div className="brand">
+        <div className="brand-icon brand-icon-shield">
+          <svg
+            viewBox="0 0 64 64"
+            className="brand-shield-svg"
+            aria-hidden="true"
+          >
+            {/* Outer shield */}
+            <path
+              d="M32 4 L50 10 L50 28 C50 40 42 50 32 56 C22 50 14 40 14 28 L14 10 Z"
+              className="shield-outline"
+            />
+            {/* Inner glow */}
+            <path
+              d="M32 8 L46 13 L46 27 C46 37 40 45 32 50 C24 45 18 37 18 27 L18 13 Z"
+              className="shield-inner"
+            />
+            {/* Center vertical spine */}
+            <path
+              d="M32 12 L32 44"
+              className="shield-spine"
+            />
+            {/* Three 'heads' of Cerberus */}
+            <circle cx="24" cy="24" r="3" className="cerb-head" />
+            <circle cx="32" cy="22" r="3" className="cerb-head" />
+            <circle cx="40" cy="24" r="3" className="cerb-head" />
+          </svg>
         </div>
+        <div>
+          <div className="brand-title">Cerbervox</div>
+          <div className="brand-sub">Only real voices get through.</div>
+        </div>
+      </div>
+
+
         <nav className="topnav">
           <button
             className={`topnav-item ${siteTab === "demo" ? "active" : ""}`}
@@ -246,7 +318,7 @@ function App() {
                   checked={juryMode}
                   onChange={(e) => setJuryMode(e.target.checked)}
                 />
-                <span>Jury demo mode (simplified)</span>
+                <span>Demo mode (simplified)</span>
               </label>
             </div>
 
@@ -264,10 +336,13 @@ function App() {
                   max="0.99"
                   step="0.01"
                   value={similarityThr}
-                  onChange={(e) => setSimilarityThr(parseFloat(e.target.value))}
+                  onChange={(e) =>
+                    setSimilarityThr(parseFloat(e.target.value))
+                  }
                 />
                 <p className="rail-hint">
-                  Higher → stricter identity match (fewer impostors, more false rejections).
+                  Higher → stricter identity match (fewer impostors, more false
+                  rejections).
                 </p>
               </div>
 
@@ -312,16 +387,19 @@ function App() {
                 <option value="real-enrolled">Real: enrolled-like</option>
                 <option value="fake-tts">Fake: TTS / cloned</option>
               </select>
-              <button className="btn secondary full" onClick={handleLoadExample}>
+              <button
+                className="btn secondary full"
+                onClick={handleLoadExample}
+              >
                 Load selected example
               </button>
-              
             </div>
 
             <div className="rail-section">
               <div className="rail-title">Model status</div>
               <p className="rail-hint">
-                Enrolled identities: {result?.has_enrollment ? "available" : "0 (demo)"}
+                Enrolled identities:{" "}
+                {result?.has_enrollment ? "available" : "0 (demo)"}
               </p>
             </div>
           </aside>
@@ -332,15 +410,23 @@ function App() {
               <div>
                 <h1>AI-Based Voice Authentication & Anti-Deepfake Console</h1>
                 <p>
-                  This prototype simulates a secure voice gate in front of critical
-                  communication channels. Audio is inspected for spoofing, anomalies and
-                  identity mismatch before being allowed through.
+                  This prototype simulates a secure voice gate in front of
+                  critical communication channels. Audio is inspected for
+                  spoofing, anomalies and identity mismatch before being allowed
+                  through.
                 </p>
                 <ul>
                   <li>Spoof classifier → real vs synthetic / cloned voice</li>
-                  <li>Anomaly detector → unusual embeddings vs known real speech</li>
-                  <li>Speaker matching (optional) → cosine similarity vs enrolled voices</li>
-                  <li>Policy engine → ACCEPT / REJECT / SUSPICIOUS + risk level</li>
+                  <li>
+                    Anomaly detector → unusual embeddings vs known real speech
+                  </li>
+                  <li>
+                    Speaker matching (optional) → cosine similarity vs enrolled
+                    voices
+                  </li>
+                  <li>
+                    Policy engine → ACCEPT / REJECT / SUSPICIOUS + risk level
+                  </li>
                 </ul>
               </div>
             </section>
@@ -367,11 +453,13 @@ function App() {
                 <div className="card">
                   <div className="card-header">
                     <h2>1. Provide audio</h2>
-                    <span className="badge">WAV / MP3 / FLAC / OGG / M4A</span>
+                    <span className="badge">
+                      WAV / MP3 / FLAC / OGG / M4A
+                    </span>
                   </div>
                   <p className="card-sub">
-                    Upload a field recording, a normal human clip, or a TTS / cloned
-                    sample to see how the gate responds.
+                    Upload a field recording, a normal human clip, or a TTS /
+                    cloned sample to see how the gate responds.
                   </p>
 
                   <div className="input-row">
@@ -404,16 +492,22 @@ function App() {
                             Challenge–response phrase (concept)
                           </div>
                           <p>
-                            In a real system, the operator issues a one-time phrase.
-                            Caller must repeat it live to bind the command to a human.
+                            In a real system, the operator issues a one-time
+                            phrase. Caller must repeat it live to bind the
+                            command to a human.
                           </p>
                         </div>
-                        <button className="btn ghost" onClick={handleGeneratePhrase}>
+                        <button
+                          className="btn ghost"
+                          onClick={handleGeneratePhrase}
+                        >
                           Generate phrase
                         </button>
                       </div>
                       {challengePhrase && (
-                        <div className="challenge-phrase">{challengePhrase}</div>
+                        <div className="challenge-phrase">
+                          {challengePhrase}
+                        </div>
                       )}
                     </div>
                   )}
@@ -475,12 +569,15 @@ function App() {
                             </div>
                             <div className="prob-label">FAKE</div>
                           </div>
-                          <div className="risk-chip">
+                                                    <div
+                            className={`risk-chip risk-${result.risk_level_frontend
+                              .toLowerCase()
+                              .replace(/\s+/g, "-")}`}
+                          >
                             <div className="risk-label">Risk</div>
-                            <div className="risk-value">
-                              {result.risk_level_frontend}
-                            </div>
+                            <div className="risk-value">{result.risk_level_frontend}</div>
                           </div>
+
                         </div>
                       </div>
 
@@ -560,19 +657,60 @@ function App() {
                   <div className="card">
                     <h2>Expert analysis</h2>
                     <div className="placeholder">
-                      Run a sample in <span className="mono">Quick verdict</span> first.
+                      Run a sample in <span className="mono">Quick verdict</span>{" "}
+                      first.
                     </div>
                   </div>
                 ) : (
                   <>
                     <div className="card">
-                      <h2>Waveform & spectrogram</h2>
+                      <div className="card-header">
+                        <h2>Waveform & spectrogram</h2>
+                        <div className="zoom-toolbar">
+                          <span>Zoom</span>
+                          <button
+                            className="zoom-btn"
+                            onClick={() =>
+                              setZoom((z) => Math.max(0.5, z - 0.25))
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="zoom-level">
+                            {(zoom * 100).toFixed(0)}%
+                          </span>
+                          <button
+                            className="zoom-btn"
+                            onClick={() =>
+                              setZoom((z) => Math.min(3, z + 0.25))
+                            }
+                          >
+                            +
+                          </button>
+                          <button
+                            className="zoom-btn reset"
+                            onClick={() => setZoom(1.0)}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
                       {result.plot_image ? (
-                        <img
-                          src={result.plot_image}
-                          alt="Waveform and spectrogram"
-                          className="plot-image"
-                        />
+                        <div className="plot-zoom-container">
+                          <div
+                            className="plot-zoom-inner"
+                            style={{
+                              transform: `scale(${zoom})`,
+                              transformOrigin: "top left",
+                            }}
+                          >
+                            <img
+                              src={result.plot_image}
+                              alt="Waveform and spectrogram"
+                              className="plot-image"
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <div className="placeholder">
                           No plot image returned from backend.
@@ -590,10 +728,14 @@ function App() {
                             ? result.iso_score.toFixed(3)
                             : "None"}
                         </li>
-                        <li>Risk (frontend): {result.risk_level_frontend}</li>
+                        <li>
+                          Risk (frontend): {result.risk_level_frontend}
+                        </li>
                         <li>
                           Best match:{" "}
-                          {result.best_match !== null ? result.best_match : "None"}
+                          {result.best_match !== null
+                            ? result.best_match
+                            : "None"}
                         </li>
                         <li>
                           Similarity:{" "}
@@ -605,7 +747,9 @@ function App() {
 
                       {!juryMode && (
                         <div className="raw-json">
-                          <div className="raw-json-title">Raw JSON (debug)</div>
+                          <div className="raw-json-title">
+                            Raw JSON (debug)
+                          </div>
                           <pre>{JSON.stringify(result, null, 2)}</pre>
                         </div>
                       )}
@@ -621,31 +765,32 @@ function App() {
       {siteTab === "how" && (
         <main className="static-main">
           <section className="static-card">
-            <h2>How Aegis Voice Shield evaluates audio</h2>
+            <h2>How Cerbervox evaluates audio</h2>
             <ol>
               <li>
-                <b>Ingest & normalize.</b> The uploaded signal is resampled, normalized,
-                and trimmed to a usable segment.
+                <b>Ingest & normalize.</b> The uploaded signal is resampled,
+                normalized, and trimmed to a usable segment.
               </li>
               <li>
-                <b>Feature extraction.</b> MFCCs and spectral statistics are computed to
-                represent the voice in a compact numerical form.
+                <b>Feature extraction.</b> MFCCs and spectral statistics are
+                computed to represent the voice in a compact numerical form.
               </li>
               <li>
-                <b>Spoof classifier.</b> A RandomForest model predicts whether the clip
-                is more likely genuine human speech or spoofed / synthetic.
+                <b>Spoof classifier.</b> A RandomForest model predicts whether
+                the clip is more likely genuine human speech or spoofed /
+                synthetic.
               </li>
               <li>
-                <b>Anomaly detector.</b> An IsolationForest checks if the embedding lies
-                inside the manifold of known real voices.
+                <b>Anomaly detector.</b> An IsolationForest checks if the
+                embedding lies inside the manifold of known real voices.
               </li>
               <li>
-                <b>Identity check (optional).</b> Cosine similarity compares the sample
-                to enrolled voiceprints.
+                <b>Identity check (optional).</b> Cosine similarity compares the
+                sample to enrolled voiceprints.
               </li>
               <li>
-                <b>Policy engine.</b> Scores are fused into the final verdict and risk
-                level you see in the console.
+                <b>Policy engine.</b> Scores are fused into the final verdict
+                and risk level you see in the console.
               </li>
             </ol>
           </section>
@@ -657,26 +802,128 @@ function App() {
           <section className="static-card">
             <h2>Use cases & positioning</h2>
             <p>
-              Aegis Voice Shield is a prototype exploring how AI can protect voice
+              Cerbervox is a prototype exploring how AI can protect voice
               channels from deepfake and spoofed audio. It is designed as a{" "}
               <b>front-door filter</b> before high-impact actions.
             </p>
             <ul>
-              <li>Pre-screening suspicious calls in security / operations centers</li>
-              <li>Guarding remote command channels and “voice-only” escalation paths</li>
+              <li>Pre-screening suspicious calls in security / ops centers</li>
+              <li>
+                Guarding remote command channels and “voice-only” escalation
+                paths
+              </li>
               <li>Training / demo platform for cyber & forensics teams</li>
               <li>Educational sandbox for anti-deepfake research</li>
             </ul>
             <p>
-              This implementation is not field-grade yet, but the architecture mirrors
-              what a hardened system would use: multi-signal scoring, challenge-response
-              concepts, and explicit risk surfacing for human operators.
+              This implementation is not field-grade yet, but the architecture
+              mirrors what a hardened system would use: multi-signal scoring,
+              challenge-response concepts, and explicit risk surfacing for human
+              operators.
             </p>
           </section>
         </main>
+        
       )}
+      <Footer setSiteTab={setSiteTab} />
+
     </div>
   );
 }
+
+function Footer({ setSiteTab }) {
+  return (
+    <footer className="footer">
+      <div className="footer-main">
+        {/* Brand + description */}
+        <div className="footer-column">
+          <div className="footer-brand">
+            <div className="brand-icon brand-icon-shield footer-icon">
+              {/* reuse existing shield SVG */}
+              <svg
+                viewBox="0 0 64 64"
+                className="brand-shield-svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M32 4 L50 10 L50 28 C50 40 42 50 32 56 C22 50 14 40 14 28 L14 10 Z"
+                  className="shield-outline"
+                />
+                <path
+                  d="M32 8 L46 13 L46 27 C46 37 40 45 32 50 C24 45 18 37 18 27 L18 13 Z"
+                  className="shield-inner"
+                />
+                <path d="M32 12 L32 44" className="shield-spine" />
+                <circle cx="24" cy="24" r="3" className="cerb-head" />
+                <circle cx="32" cy="22" r="3" className="cerb-head" />
+                <circle cx="40" cy="24" r="3" className="cerb-head" />
+              </svg>
+            </div>
+            <div>
+              <div className="footer-title">Cerbervox</div>
+              <div className="footer-sub">
+                AI voice gate that blocks deepfake and spoofed audio before it
+                reaches critical channels.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav links */}
+        <div className="footer-column">
+          <div className="footer-heading">Navigate</div>
+          <button
+            className="footer-link"
+            onClick={() => setSiteTab("demo")}
+          >
+            Live demo
+          </button>
+          <button
+            className="footer-link"
+            onClick={() => setSiteTab("how")}
+          >
+            How it works
+          </button>
+          <button
+            className="footer-link"
+            onClick={() => setSiteTab("about")}
+          >
+            Use cases
+          </button>
+          <a
+            className="footer-link"
+            href="https://github.com/abhigyanshrivastav/vox"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub repo
+          </a>
+        </div>
+
+        {/* Status + disclaimer */}
+        <div className="footer-column">
+          <div className="footer-heading">Prototype status</div>
+          <p className="footer-text">
+            This is an academic prototype for demonstrating anti-deepfake voice
+            authentication. It is <b>not</b> certified or hardened for real
+            military or commercial deployment.
+          </p>
+          <div className="footer-tags">
+            <span className="footer-tag">Python</span>
+            <span className="footer-tag">FastAPI</span>
+            <span className="footer-tag">scikit-learn</span>
+            <span className="footer-tag">React</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="footer-bottom">
+        <span>© 2025 Cerbervox · Academic demo</span>
+        
+      </div>
+    </footer>
+  );
+}
+
 
 export default App;

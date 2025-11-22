@@ -1,0 +1,23 @@
+This is a test of the secure voice system.
+I am speaking clearly for authentication.
+Please confirm that you can hear me properly.
+Today the weather is hot and a bit humid.
+The network connection is stable right now
+Delhi traffic was terrible in the morning.
+I usually drink tea at six in the evening.
+The password should never be shared with anyone.
+Our meeting will start at ten thirty sharp.
+Please acknowledge this command and repeat it.
+I will send the report by email after this call.
+Do not trust any unknown call asking for OTP.
+My favourite subject in engineering is electronics.
+The laboratory is on the third floor of the building.
+Please switch off the fan and lights before leaving.
+The exam timetable was updated yesterday night.
+Voice commands should be verified before execution.
+I woke up early today to finish my assignment.
+Any critical action, always double-check the source.
+This is the final part of my recording for today.
+Kindly ignore any fake audio clip claiming to be an order.
+Our voice authentication system is still a prototype.
+

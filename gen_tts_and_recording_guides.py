@@ -1,128 +1,95 @@
-import os
-import json
-import random
-import asyncio
-import edge_tts
+# gen_fake_tts.py
+#
+# Generate fake (TTS) clips for your dataset from a list of sentences.
+# It automatically continues numbering after the last existing fake_XX.wav.
 
-# -----------------------------
-# CONFIGURATION
-# -----------------------------
-VOICES = [
-    "en-US-GuyNeural",
-    "en-US-JennyNeural",
-    "en-GB-RyanNeural",
-    "en-GB-SoniaNeural"
-]
+import re
+from pathlib import Path
 
-SENTENCES = [
-    "Secure channels must remain uncompromised at all times.",
-    "Authentication codes will rotate every five minutes.",
-    "Drone surveillance detected movement near the perimeter.",
-    "The quick brown fox jumps over the lazy dog.",
-    "Mission authorization requires biometric verification.",
-    "Radio silence must be maintained during infiltration.",
-    "Encryption keys must never be transmitted verbally.",
-    "All personnel must verify identity using voice prints."
-]
+from gtts import gTTS
+from pydub import AudioSegment
 
-DATASET_DIR = "dataset"
-NUM_FAKE_SAMPLES = 10
-NUM_REAL_SAMPLES = 10
+TARGET_SR = 16000  # must match SR in utils_audio.py
+
+SENTENCE_FILE = "sentences_fake.txt"
+OUT_DIR = Path("dataset") / "speaker_01" / "fake"
 
 
-# -----------------------------
-# UTILITY FUNCTIONS
-# -----------------------------
-def ensure_dir(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+def ensure_out_dir():
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] Output directory: {OUT_DIR.resolve()}")
 
 
-async def generate_tts(text, voice, output_path):
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(output_path)
+def load_sentences(path: str):
+    sentences = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                sentences.append(line)
+    print(f"[INFO] Loaded {len(sentences)} sentences from {path}")
+    return sentences
 
 
-# -----------------------------
-# GENERATE RECORDING GUIDE
-# -----------------------------
-def generate_recording_guide(speaker_id):
-    guide_text = [
-        f"Recording Guide for Speaker {speaker_id}",
-        "--------------------------------------------",
-        "Instructions:",
-        "- Record in a quiet room.",
-        "- Keep the mic 10–20 cm away.",
-        "- Speak naturally, do not whisper.",
-        "- Record each sentence clearly.",
-        "",
-        "Sentences to Record:"
-    ]
-    
-    for idx, sentence in enumerate(SENTENCES, 1):
-        guide_text.append(f"{idx}. {sentence}")
+def get_next_index():
+    """
+    Scan OUT_DIR for files named like fake_XX.wav or fake_XXX.wav
+    and return the next integer index.
+    """
+    if not OUT_DIR.exists():
+        return 1
 
-    guide_path = os.path.join(DATASET_DIR, f"speaker_{speaker_id}", "recording_guide.txt")
-    with open(guide_path, "w") as f:
-        f.write("\n".join(guide_text))
+    pattern = re.compile(r"fake_(\d+)\.wav$", re.IGNORECASE)
+    max_idx = 0
 
+    for p in OUT_DIR.glob("fake_*.wav"):
+        m = pattern.search(p.name)
+        if m:
+            idx = int(m.group(1))
+            if idx > max_idx:
+                max_idx = idx
 
-# -----------------------------
-# GENERATE FAKE TTS SAMPLES
-# -----------------------------
-async def generate_fake_samples(speaker_id):
-    fake_dir = os.path.join(DATASET_DIR, f"speaker_{speaker_id}", "fake")
-    ensure_dir(fake_dir)
-
-    for i in range(NUM_FAKE_SAMPLES):
-        text = random.choice(SENTENCES)
-        voice = random.choice(VOICES)
-        file_path = os.path.join(fake_dir, f"fake_{i+1}.wav")
-        await generate_tts(text, voice, file_path)
+    next_idx = max_idx + 1
+    print(f"[INFO] Highest existing fake index: {max_idx} -> next will be {next_idx}")
+    return next_idx
 
 
-# -----------------------------
-# GENERATE METADATA
-# -----------------------------
-def generate_metadata(speaker_id):
-    meta = {
-        "speaker_id": speaker_id,
-        "num_real_samples_required": NUM_REAL_SAMPLES,
-        "num_fake_samples": NUM_FAKE_SAMPLES,
-        "voices_used": VOICES,
-        "sentences": SENTENCES
-    }
+def tts_to_wav(text: str, out_path: Path, lang="en", slow=False):
+    # 1) Synthesize to temporary MP3 via gTTS
+    tmp_mp3 = out_path.with_suffix(".mp3")
+    tts = gTTS(text=text, lang=lang, slow=slow)
+    tts.save(str(tmp_mp3))
 
-    meta_path = os.path.join(DATASET_DIR, f"speaker_{speaker_id}", "metadata.json")
-    with open(meta_path, "w") as f:
-        json.dump(meta, f, indent=4)
+    # 2) Convert MP3 -> WAV 16k mono
+    audio = AudioSegment.from_mp3(tmp_mp3)
+    audio = audio.set_frame_rate(TARGET_SR).set_channels(1)
+    audio.export(out_path, format="wav")
+    tmp_mp3.unlink(missing_ok=True)
 
 
-# -----------------------------
-# MAIN EXECUTION
-# -----------------------------
-async def main():
-    speaker_id = input("Enter speaker ID (e.g., 01): ").strip()
+def main():
+    ensure_out_dir()
+    sentences = load_sentences(SENTENCE_FILE)
+    if not sentences:
+        print("[ERROR] No sentences found, aborting.")
+        return
 
-    # Create folder structure
-    base = os.path.join(DATASET_DIR, f"speaker_{speaker_id}")
-    ensure_dir(base)
-    ensure_dir(os.path.join(base, "real"))
-    ensure_dir(os.path.join(base, "fake"))
+    start_idx = get_next_index()
 
-    print("[+] Generating recording guide...")
-    generate_recording_guide(speaker_id)
+    for offset, sent in enumerate(sentences):
+        idx = start_idx + offset
+        # keep at least 2 digits; if you prefer 3 digits, use {idx:03d}
+        fname = f"fake_{idx:02d}.wav"
+        out_path = OUT_DIR / fname
+        print(f"[GEN] {fname}  ←  \"{sent}\"")
 
-    print("[+] Generating TTS deepfake samples...")
-    await generate_fake_samples(speaker_id)
+        try:
+            tts_to_wav(sent, out_path)
+        except Exception as e:
+            print(f"[WARN] Failed to synthesize '{sent}': {e}")
 
-    print("[+] Generating metadata...")
-    generate_metadata(speaker_id)
-
-    print("\nDONE.")
-    print(f"Dataset ready under: {DATASET_DIR}/speaker_{speaker_id}")
-    print("Record REAL samples manually using the recording_guide.txt file.")
+    print("[DONE] Fake TTS generation complete.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
