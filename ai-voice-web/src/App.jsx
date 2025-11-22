@@ -279,7 +279,7 @@ function App() {
         </div>
         <div>
           <div className="brand-title">Cerbervox</div>
-          <div className="brand-sub">Only real voices get through.</div>
+          <div className="brand-sub">Only real voices get through</div>
         </div>
       </div>
 
